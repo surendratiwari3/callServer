@@ -3,6 +3,7 @@ package configs
 import (
 	"strings"
 	"github.com/spf13/viper"
+	"fmt"
 )
 type cacheConfig struct {
 	Host         string // CACHE_HOST
@@ -24,6 +25,9 @@ func GetConfig() *Config {
 	v := viper.New()
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	fmt.Println(v.Get("cache.host"))
+	fmt.Println(v.Get("cache_host"))
 
 	cacheConf := cacheConfig{
 		Host:         v.GetString("cache.host"),

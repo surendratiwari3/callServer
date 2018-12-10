@@ -4,7 +4,7 @@ import (
 	"github.com/labstack/echo"
 	"echoServer/logger"
 	"callServer/configs"
-	"callServer/adapters/repository"
+	adapters "callServer/adapters/repository"
 	"github.com/labstack/echo/middleware"
 )
 
@@ -18,12 +18,12 @@ func main() {
 
 	log := logger.NewLogger("info.log", "info")
 
-	cacheAdapter := repository.NewCacheAdapterRepository(config, log)
+	redisAdapter, err := adapters.NewRedisAdapterRepository(config)
 
-	if cacheAdapter == nil {
-		log.Println("hello world")
+	if redisAdapter==nil || err != nil {
+		log.WithError(err).Fatal("redis is not able to connect ")
+		panic("redis is not able to connect" )
 	}
-
 	if err := e.Start("0.0.0.0:10000"); err != nil {
 		log.WithError(err).Fatal("echo server not able to start")
 	}

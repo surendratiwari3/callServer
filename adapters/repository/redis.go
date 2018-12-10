@@ -5,7 +5,6 @@ import (
 	"github.com/go-redis/redis"
 	"callServer/configs"
 	"callServer/adapters"
-	"github.com/Sirupsen/logrus"
 )
 
 type redisAdapterRepository struct {
@@ -15,31 +14,25 @@ type redisAdapterRepository struct {
 
 
 // newCacheConnection - Initializes cache connection
-func newCacheConnection(config *configs.Config, logger *logrus.Logger) redis.Cmdable {
-	cacheConn := redis.NewClient(&redis.Options{
+func newRedisConnection(config *configs.Config) (redis.Cmdable, error) {
+	redisConn := redis.NewClient(&redis.Options{
 		Addr:        config.Cache.Host,
 		Password:    "",
 		DB:          0,
 		ReadTimeout: time.Second,
 		PoolSize:    config.Cache.PoolSize,
 	})
-	if cacheConn == nil {
-		logger.WithField("redis_host", config.Cache.Host).Errorf("Can't connect to redis")
-	}
-	return cacheConn
+	_, err := redisConn.Ping().Result()
+	return redisConn, err
 }
 
 // NewCacheAdapterRepository - Repository layer for cache
-func NewCacheAdapterRepository(config *configs.Config, logger *logrus.Logger) adapters.RedisAdapter {
-	logger.WithField("redis_host", config.Cache.Host).Info("connecting to redis")
-	cacheConn := newCacheConnection(config, logger)
-	if cacheConn == nil {
-		panic("unable to connect to redis")
-	}
+func NewRedisAdapterRepository(config *configs.Config) (adapters.RedisAdapter, error) {
+	redisConn, err := newRedisConnection(config)
 	return &redisAdapterRepository{
 		config:    config,
-		cacheConn: cacheConn,
-	}
+		cacheConn: redisConn,
+	}, err
 }
 
 //Get - Get value from redis
