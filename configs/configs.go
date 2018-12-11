@@ -10,9 +10,30 @@ type cacheConfig struct {
 	PoolSize     int    // CACHE_POOLSIZE
 }
 
+type logConfig struct {
+	LogFile		   string
+	LogLevel 		string
+}
+
+type httpConfig struct {
+	HostPort string
+}
+
+type eslConfig struct {
+	HostPort string
+	Password string
+	Reconnect int
+}
+
+export ESL_HOST=127.0.0.1:8021
+export ESL_PASSWORD=ClueCon
+export ESL_RECONNECT=5
 // Config - configuration object
 type Config struct {
 	Cache          cacheConfig
+	Log		   logConfig
+	HttpConfig httpConfig
+	EslConfig	eslConfig
 }
 
 var conf *Config
@@ -34,8 +55,25 @@ func GetConfig() *Config {
 		PoolSize:     v.GetInt("cache.poolsize"),
 	}
 
+	logConf := logConfig{
+		LogFile:         v.GetString("log.file"),
+		LogLevel:     v.GetString("log.level"),
+	}
+
+	httpConf := httpConfig{
+		HostPort:         v.GetString("http.host"),
+	}
+	eslConf := eslConfig{
+		HostPort:         v.GetString("esl.host"),
+		Password:         v.GetString("esl.password"),
+		Reconnect:         v.GetInt("esl.reconnect"),
+	}
+
 	conf = &Config{
 		Cache:     cacheConf,
+		Log: 	logConf,
+		HttpConfig: httpConf,
+		EslConfig: eslConf,
 	}
 	return conf
 }
