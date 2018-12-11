@@ -5,6 +5,8 @@ import (
 	"echoServer/logger"
 	"callServer/configs"
 	adapters "callServer/adapters/repository"
+	requests "callServer/requests/repository"
+	auth "callServer/basicAuth/repository"
 	"github.com/labstack/echo/middleware"
 )
 
@@ -24,6 +26,8 @@ func main() {
 		log.WithError(err).Fatal("redis is not able to connect ")
 		panic("redis is not able to connect" )
 	}
+	auth.NewAuthController(e)
+	requests.NewRequestController(e)
 	if err := e.Start("0.0.0.0:10000"); err != nil {
 		log.WithError(err).Fatal("echo server not able to start")
 	}
