@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/labstack/echo"
-	"echoServer/logger"
+	"callServer/logger"
 	"callServer/configs"
 	adapters "callServer/adapters/repository"
 	requests "callServer/requests/repository"
