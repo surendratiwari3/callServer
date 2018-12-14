@@ -34,9 +34,10 @@ func (a *Controller) call(c echo.Context) error {
 	if err != nil{
 		panic("not able to generate the connection UUID to connect with FreeSWITCH")
 	}
-
+	response["callUUID"] = callUUID
+	
 	authId := c.Param("auth_id")
-	fromNumber := callDetails["from_number"].(string)
+	fromNumber := callDetails["fromNumber"].(string)
 	toNumber := callDetails["toNumber"].(string)
 	didNumber := callDetails["didNumber"].(string)
 
