@@ -20,13 +20,24 @@ func NewRequestController(e *echo.Echo, client *esl.Client) {
 }
 
 func (a *Controller) call(c echo.Context) error {
-	auth_id := c.Param("auth_id")
-	fromNumber := c.QueryParam("fromNumber")
-	toNumber := c.QueryParam("toNumber")
-	didNumber := c.QueryParam("didNumber")
+	var callDetails map[string]interface{}
+
+	err := c.Bind(&callDetails)
 	response := make(map[string]interface{})
-	response["message"] = "Successfully Authenticated " + auth_id
-	eslJobid := a.ESLClient.BgApi(fmt.Sprintf("originate %s %s", "{origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/internal/"+toNumber+"@10.17.112.21", "&bridge({origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/external/"+fromNumber+"@10.17.112.21)"))
+	if err != nil {
+		response["error"] = err.Error()
+		return c.JSON(http.StatusBadRequest, response)
+	}
+
+	authId := c.Param("auth_id")
+	fromNumber := callDetails["from_number"].(string)
+	toNumber := callDetails["toNumber"].(string)
+	didNumber := callDetails["didNumber"].(string)
+
+	response["message"] = "Successfully Authenticated " + authId
+	eslJobid := a.ESLClient.BgApi(fmt.Sprintf("originate %s %s",
+		"{origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/internal/"+toNumber+"@10.17.112.21",
+		"&bridge({origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/external/"+fromNumber+"@10.17.112.21)"))
 	response["jobId"] = eslJobid
 	return c.JSON(http.StatusOK, response)
 }
