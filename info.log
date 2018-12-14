@@ -1,4 +1,0 @@
-{"level":"info","msg":"hello world","time":"2018-12-10T22:52:42+05:30"}
-{"level":"error","msg":"connecting to redis","redis_host":"","time":"2018-12-10T22:59:54+05:30"}
-{"level":"info","msg":"connecting to redis","redis_host":"","time":"2018-12-10T23:01:50+05:30"}
-{"error":"listen tcp 0.0.0.0:10000: bind: address already in use","level":"fatal","msg":"echo server not able to start","time":"2018-12-10T23:01:50+05:30"}
