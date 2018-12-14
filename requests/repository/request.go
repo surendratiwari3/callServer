@@ -21,9 +21,12 @@ func NewRequestController(e *echo.Echo, client *esl.Client) {
 
 func (a *Controller) call(c echo.Context) error {
 	auth_id := c.Param("auth_id")
+	fromNumber := c.QueryParam("fromNumber")
+	toNumber := c.QueryParam("toNumber")
+	didNumber := c.QueryParam("didNumber")
 	response := make(map[string]interface{})
 	response["message"] = "Successfully Authenticated " + auth_id
-	eslJobid := a.ESLClient.BgApi(fmt.Sprintf("originate %s %s", "sofia/internal/1001@127.0.0.1", "&socket(192.168.1.2:8084 async full)"))
+	eslJobid := a.ESLClient.BgApi(fmt.Sprintf("originate %s %s", "{origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/internal/"+toNumber+"@10.17.112.21", "&bridge({origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/external/"+fromNumber+"@10.17.112.21)"))
 	response["jobId"] = eslJobid
 	return c.JSON(http.StatusOK, response)
 }
