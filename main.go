@@ -7,10 +7,18 @@ import (
 	adapters "callServer/adapters/repository"
 	requests "callServer/requests/repository"
 	auth "callServer/basicAuth/repository"
-	fs "callServer/eslAdapter/repository"
-	utils "callServer/coreUtils/repository"
+	esl "github.com/0x19/goesl"
 	"github.com/labstack/echo/middleware"
+	"flag"
 )
+
+var (
+	fshost   = flag.String("fshost", "localhost", "Freeswitch hostname. Default: localhost")
+	fsport   = flag.Uint("fsport", 8021, "Freeswitch port. Default: 8021")
+	password = flag.String("pass", "ClueCon", "Freeswitch password. Default: ClueCon")
+	timeout  = flag.Int("timeout", 10, "Freeswitch conneciton timeout in seconds. Default: 10")
+)
+
 
 func main() {
 
@@ -32,14 +40,18 @@ func main() {
 		panic("redis is not able to connect")
 	}
 
-	connId, err := utils.GenUUID()
-	if err != nil{
-		panic("not able to generate the connection UUID to connect with FreeSWITCH")
+	//ESL
+	eslClient, err := esl.NewClient(*fshost, *fsport, *password, *timeout)
+	if err != nil {
+		panic("not able to connect with FreeSWITCH")
+		return
 	}
-	log.Info("uuid got generated for freeswutch" + connId)
+	go eslClient.Handle()
+
+
 	//Associating the controller
 	auth.NewAuthController(e)
-	requests.NewRequestController(e)
+	requests.NewRequestController(e, eslClient)
 
 	if err := e.Start(config.HttpConfig.HostPort); err != nil {
 		log.WithError(err).Fatal("echo server not able to start")

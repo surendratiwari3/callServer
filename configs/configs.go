@@ -25,9 +25,6 @@ type eslConfig struct {
 	Reconnect int
 }
 
-export ESL_HOST=127.0.0.1:8021
-export ESL_PASSWORD=ClueCon
-export ESL_RECONNECT=5
 // Config - configuration object
 type Config struct {
 	Cache          cacheConfig
