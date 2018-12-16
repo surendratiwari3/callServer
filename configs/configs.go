@@ -20,9 +20,10 @@ type httpConfig struct {
 }
 
 type eslConfig struct {
-	HostPort string
+	Host string
+	Port uint
 	Password string
-	Reconnect int
+	Timeout int
 }
 
 // Config - configuration object
@@ -61,11 +62,11 @@ func GetConfig() *Config {
 		HostPort:         v.GetString("http.host"),
 	}
 	eslConf := eslConfig{
-		HostPort:         v.GetString("esl.host"),
+		Host: v.GetString("esl.host"),
+		Port:         uint(v.GetInt("esl.port")),
 		Password:         v.GetString("esl.password"),
-		Reconnect:         v.GetInt("esl.reconnect"),
+		Timeout:         v.GetInt("esl.timeout"),
 	}
-
 	conf = &Config{
 		Cache:     cacheConf,
 		Log: 	logConf,

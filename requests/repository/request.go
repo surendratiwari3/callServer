@@ -3,19 +3,19 @@ package repository
 import (
 	"net/http"
 	"github.com/labstack/echo"
-	esl "github.com/0x19/goesl"
 	coreUtils "callServer/coreUtils/repository"
+	"callServer/adapters"
 	"fmt"
 )
 
 // Controller - struct to logically bind all the controller functions
 type Controller struct {
-	ESLClient *esl.Client
+	ESLClient adapters.ESLAdapter
 }
 
-func NewRequestController(e *echo.Echo, client *esl.Client) {
+func NewRequestController(e *echo.Echo, eslAdapter adapters.ESLAdapter) {
 	requestHandler := &Controller{
-		ESLClient: client,
+		ESLClient: eslAdapter,
 	}
 	e.POST("v1/Account/:auth_id/Call/", requestHandler.call)
 }
@@ -42,8 +42,10 @@ func (a *Controller) call(c echo.Context) error {
 	didNumber := callDetails["didNumber"].(string)
 
 	response["message"] = "Call is Created"
-	a.ESLClient.BgApi(fmt.Sprintf("originate %s %s",
+
+	originateCommand := fmt.Sprintf("originate %s %s",
 		"{origination_uuid="+callUUID+",origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/internal/"+toNumber+"@10.17.112.21",
-		"&bridge({origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/external/"+fromNumber+"@10.17.112.21)"))
+		"&bridge({origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/external/"+fromNumber+"@10.17.112.21)")
+	a.ESLClient.Originate(originateCommand)
 	return c.JSON(http.StatusOK, response)
 }
