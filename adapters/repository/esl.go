@@ -76,7 +76,6 @@ func NewESLAdapterRepository(config *configs.Config) (adapters.ESLAdapter, error
 //Get - Get value from redis
 func (c *eslAdapterRepository) Originate(eslCommand string) (string, error) {
 	eslCmd := fmt.Sprintf("bgapi %s", eslCommand)
-	c.eslConn.SendCmd(eslCmd)
 	return c.eslConn.SendCmd(eslCmd)
 	//data, err := c.cacheConn.Get(key).Result()
 	//return data, err
