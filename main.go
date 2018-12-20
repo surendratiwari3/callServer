@@ -34,8 +34,6 @@ func main() {
 		log.WithError(err).Fatal("FreeSWITCH is not able to connect ")
 		panic("FreeSWITCH is not able to connect")
 	}
-
-	
 	//Associating the controller
 	auth.NewAuthController(e)
 	requests.NewRequestController(e, eslAdapter)

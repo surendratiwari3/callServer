@@ -4,9 +4,10 @@ import (
 	esl "github.com/cgrates/fsock"
 	"callServer/configs"
 	"callServer/adapters"
-	coreUtils	"callServer/coreUtils/repository"
+	coreUtils "callServer/coreUtils/repository"
 	"log/syslog"
 	"fmt"
+	"time"
 )
 
 type eslAdapterRepository struct {
@@ -30,9 +31,21 @@ func printChannelAnswer( eventStr, connId string) {
 
 // Formats the event as map and prints it out
 func printChannelHangup( eventStr, connId string) {
+	time.Sleep(2000 * time.Millisecond)
 	// Format the event from string into Go's map type
 	eventMap := esl.FSEventStrToMap(eventStr, []string{})
 	fmt.Printf("%v, connId: %s\n",eventMap, connId)
+	didNumber := "919967609476"
+	toNumber := "919967609476"
+	fromNumber := "+17139187788"
+	trunkIP := "10.17.112.21"
+
+	originateCommand := fmt.Sprintf("originate %s %s",
+		"{origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/internal/"+toNumber+"@"+trunkIP,
+		"&bridge({origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/external/"+fromNumber+"@"+trunkIP+")")
+	eslCmd := fmt.Sprintf("bgapi %s", originateCommand)
+	esl.FSock.SendCmd(eslCmd)
+	//response, err := c.eslConn.SendCmd(eslCmd)
 }
 
 func newESLConnection(config *configs.Config)(*esl.FSock, error){

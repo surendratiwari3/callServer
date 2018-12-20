@@ -3,9 +3,9 @@ package repository
 import (
 	"net/http"
 	"github.com/labstack/echo"
-	coreUtils "callServer/coreUtils/repository"
 	"callServer/adapters"
 	"fmt"
+	"strings"
 )
 
 // Controller - struct to logically bind all the controller functions
@@ -30,22 +30,18 @@ func (a *Controller) call(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, response)
 	}
 
-	callUUID, err := coreUtils.GenUUID()
-	if err != nil {
-		panic("not able to generate the connection UUID to connect with FreeSWITCH")
-	}
-	response["callUUID"] = callUUID
-
 	//authId := c.Param("auth_id")
 	fromNumber := callDetails["fromNumber"].(string)
 	toNumber := callDetails["toNumber"].(string)
 	didNumber := callDetails["didNumber"].(string)
-
+	trunkIP := "115.248.91.197"
 	response["message"] = "Call is Created"
 
 	originateCommand := fmt.Sprintf("originate %s %s",
-		"{origination_uuid="+callUUID+",origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/internal/"+toNumber+"@10.17.112.21",
-		"&bridge({origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/external/"+fromNumber+"@10.17.112.21)")
-	a.ESLClient.Originate(originateCommand)
+		"{origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/internal/"+toNumber+"@"+trunkIP,
+		"&bridge({origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/external/"+fromNumber+"@"+trunkIP+")")
+	resp, err := a.ESLClient.Originate(originateCommand)
+	respField := strings.Fields(resp)
+	response["UUID"] = string(respField[2])
 	return c.JSON(http.StatusOK, response)
 }
