@@ -32,21 +32,21 @@ func NewESLsessions(config *configs.Config) (eslPool *ESLsessions) {
 }
 
 // Formats the event as map and prints it out
-func printHeartbeat( eventStr, connId string) {
+func (eslPool *ESLsessions) printHeartbeat( eventStr, connId string) {
 	// Format the event from string into Go's map type
 	eventMap := esl.FSEventStrToMap(eventStr, []string{})
 	fmt.Printf("%v, connId: %s\n",eventMap, connId)
 }
 
 // Formats the event as map and prints it out
-func printChannelAnswer( eventStr, connId string) {
+func (eslPool *ESLsessions) printChannelAnswer( eventStr, connId string) {
 	// Format the event from string into Go's map type
 	eventMap := esl.FSEventStrToMap(eventStr, []string{})
 	fmt.Printf("%v, connId: %s\n",eventMap, connId)
 }
 
 // Formats the event as map and prints it out
-func printChannelHangup( eventStr, connId string) {
+func (eslPool *ESLsessions) printChannelHangup( eventStr, connId string) {
 	time.Sleep(2000 * time.Millisecond)
 	// Format the event from string into Go's map type
 	eventMap := esl.FSEventStrToMap(eventStr, []string{})
@@ -60,11 +60,11 @@ func printChannelHangup( eventStr, connId string) {
 		"{origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/internal/"+toNumber+"@"+trunkIP,
 		"&bridge({origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/external/"+fromNumber+"@"+trunkIP+")")
 	eslCmd := fmt.Sprintf("bgapi %s", originateCommand)
-	eslAdapterRepository.Originate(eslCmd)
+	eslPool.conns[connId].Originate(eslCmd)
 	//response, err := c.eslConn.SendCmd(eslCmd)
 }
 
-func newESLConnection(config *configs.Config, eslPool)(*esl.FSock, error){
+func newESLConnection(config *configs.Config, eslPool *ESLsessions)(*esl.FSock, error){
 	errChan := make(chan error)
 	connectionUUID, err := coreUtils.GenUUID()
 	if err != nil {
