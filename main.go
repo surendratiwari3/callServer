@@ -29,7 +29,8 @@ func main() {
 		log.WithError(err).Fatal("redis is not able to connect ")
 		panic("redis is not able to connect")
 	}
-	eslAdapter, err := adapters.NewESLAdapterRepository(config)
+	eslSessions := adapters.NewESLsessions(config)
+	eslAdapter, err := adapters.NewESLAdapterRepository(config,eslSessions)
 	if eslAdapter == nil || err != nil {
 		log.WithError(err).Fatal("FreeSWITCH is not able to connect ")
 		panic("FreeSWITCH is not able to connect")

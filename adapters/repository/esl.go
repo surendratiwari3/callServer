@@ -15,6 +15,22 @@ type eslAdapterRepository struct {
 	eslConn *esl.FSock
 }
 
+// The freeswitch session manager type holding a buffer for the network connection
+// and the active sessions
+type ESLsessions struct {
+	cfg         *configs.Config
+	conns       map[string]*eslAdapterRepository // Keep the list here for connection management purposes
+	senderPools map[string]*esl.FSockPool  // Keep sender pools here
+}
+
+func NewESLsessions(config *configs.Config) (eslPool *ESLsessions) {
+	eslPool = &ESLsessions{
+		cfg:         config,
+		conns:       make(map[string]*eslAdapterRepository),
+	}
+	return
+}
+
 // Formats the event as map and prints it out
 func printHeartbeat( eventStr, connId string) {
 	// Format the event from string into Go's map type
@@ -44,11 +60,12 @@ func printChannelHangup( eventStr, connId string) {
 		"{origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/internal/"+toNumber+"@"+trunkIP,
 		"&bridge({origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/external/"+fromNumber+"@"+trunkIP+")")
 	eslCmd := fmt.Sprintf("bgapi %s", originateCommand)
-	esl.FSock.SendCmd(eslCmd)
+	eslAdapterRepository.Originate(eslCmd)
 	//response, err := c.eslConn.SendCmd(eslCmd)
 }
 
-func newESLConnection(config *configs.Config)(*esl.FSock, error){
+func newESLConnection(config *configs.Config, eslPool)(*esl.FSock, error){
+	errChan := make(chan error)
 	connectionUUID, err := coreUtils.GenUUID()
 	if err != nil {
 		panic("not able to generate the connection UUID to connect with FreeSWITCH")
@@ -66,20 +83,29 @@ func newESLConnection(config *configs.Config)(*esl.FSock, error){
 
 	// We are interested in heartbeats, channel_answer, channel_hangup define handler for them
 	evHandlers := map[string][]func(string, string){
-		"HEARTBEAT":               {printHeartbeat},
-		"CHANNEL_ANSWER":          {printChannelAnswer},
-		"CHANNEL_HANGUP_COMPLETE": {printChannelHangup},
+		"HEARTBEAT":               {eslPool.printHeartbeat},
+		"CHANNEL_ANSWER":          {eslPool.printChannelAnswer},
+		"CHANNEL_HANGUP_COMPLETE": {eslPool.printChannelHangup},
 	}
 	eslClient, err := esl.NewFSock(fsAddr, config.EslConfig.Password, config.EslConfig.Timeout, evHandlers, evFilters, l, connectionUUID)
 	if err != nil {
 		panic("not able to connect with FreeSWITCH")
 	}
+	eslPool.conns[connectionUUID] = &eslAdapterRepository{
+		config:    config,
+		eslConn: eslClient,
+	}
+	go func() { // Start reading in own goroutine, return on error
+		if err := eslPool.conns[connectionUUID].eslConn.ReadEvents(); err != nil {
+			errChan <- err
+		}
+	}()
 	return eslClient, nil
 }
 
 // NewCacheAdapterRepository - Repository layer for cache
-func NewESLAdapterRepository(config *configs.Config) (adapters.ESLAdapter, error) {
-	eslClient, err := newESLConnection(config)
+func NewESLAdapterRepository(config *configs.Config,eslPool *ESLsessions) (adapters.ESLAdapter, error) {
+	eslClient, err := newESLConnection(config, eslPool)
 	return &eslAdapterRepository{
 		config:    config,
 		eslConn: eslClient,
