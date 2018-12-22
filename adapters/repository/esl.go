@@ -50,17 +50,18 @@ func (eslPool *ESLsessions) printChannelHangup( eventStr, connId string) {
 	time.Sleep(2000 * time.Millisecond)
 	// Format the event from string into Go's map type
 	eventMap := esl.FSEventStrToMap(eventStr, []string{})
-	fmt.Printf("%v, connId: %s\n",eventMap, connId)
-	didNumber := "919967609476"
-	toNumber := "919967609476"
+	didNumber := eventMap["variable_sip_req_user"]
+	toNumber := eventMap["Caller-Caller-ID-Number"]
 	fromNumber := "+17139187788"
 	trunkIP := "10.17.112.21"
-
-	originateCommand := fmt.Sprintf("originate %s %s",
-		"{origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/internal/"+toNumber+"@"+trunkIP,
-		"&bridge({origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/external/"+fromNumber+"@"+trunkIP+")")
-	eslCmd := fmt.Sprintf("bgapi %s", originateCommand)
-	eslPool.conns[connId].Originate(eslCmd)
+	hangupApplication	   :=	eventMap["variable_current_application_data"]
+	if (hangupApplication=="ESL_TERMINATE") {
+		originateCommand := fmt.Sprintf("originate %s %s",
+			"{origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/internal/"+toNumber+"@"+trunkIP,
+			"&bridge({origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/external/"+fromNumber+"@"+trunkIP+")")
+		eslCmd := fmt.Sprintf("bgapi %s", originateCommand)
+		eslPool.conns[connId].Originate(eslCmd)
+	}
 	//response, err := c.eslConn.SendCmd(eslCmd)
 }
 
