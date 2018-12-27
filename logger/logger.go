@@ -5,21 +5,21 @@ import (
 	"os"
 )
 
-var logger *logrus.Logger
+var Logger *logrus.Logger
 
 func NewLogger(fileName string,logLevel string) *logrus.Logger{
-	if logger != nil {
-		return logger
+	if Logger != nil {
+		return Logger
 	}
 	file, err := os.OpenFile(fileName, os.O_CREATE|os.O_APPEND|os.O_WRONLY, os.ModeAppend)
 	if err != nil {
-		logger.Fatal(err)
+		Logger.Fatal(err)
 	}
-	logger = &logrus.Logger{
+	Logger = &logrus.Logger{
 		Out:       file,
 		Formatter: &logrus.JSONFormatter{},
 		Hooks:     make(logrus.LevelHooks),
 		Level:     logrus.InfoLevel,
 	}
-	return logger
+	return Logger
 }

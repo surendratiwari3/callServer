@@ -8,6 +8,7 @@ import (
 	"log/syslog"
 	"fmt"
 	"time"
+	"strings"
 )
 
 type eslAdapterRepository struct {
@@ -42,9 +43,39 @@ func (eslPool *ESLsessions) printHeartbeat( eventStr, connId string) {
 func (eslPool *ESLsessions) printChannelAnswer( eventStr, connId string) {
 	// Format the event from string into Go's map type
 	eventMap := esl.FSEventStrToMap(eventStr, []string{})
+	aCallUUID := eventMap["variable_call_uuid"]
+	bCallUUID := eventMap["variable_aled_uuid"]
+	dtmfDigits := eventMap["variable_dtmf_digits"]
+	eslCmd := fmt.Sprintf("uuid_send_dtmf %s %s",aCallUUID,dtmfDigits)
+        eslPool.conns[connId].Originate(eslCmd)
+
+	originateCommand := fmt.Sprintf("uuid_bridge %s %s",aCallUUID,bCallUUID)
+	eslCmd = fmt.Sprintf("%s", originateCommand)
+        eslPool.conns[connId].Originate(eslCmd)
 	fmt.Printf("%v, connId: %s\n",eventMap, connId)
 }
-
+// Formats the event as map and prints it out
+func (eslPool *ESLsessions) handleChannelPark( eventStr, connId string) {
+        // Format the event from string into Go's map type
+        eventMap := esl.FSEventStrToMap(eventStr, []string{})
+        fmt.Printf("%v, connId: %s\n",eventMap, connId)
+	didNumber := eventMap["variable_sip_req_user"]
+        toNumber := "+442078557350"
+	dtmfNumber := eventMap["Caller-Caller-ID-Number"]
+	isTollFree := eventMap["variable_telemo_tollfree"]
+        trunkIP := "mytest11.pstn.sg1.twilio.com"
+	aCallUUID := eventMap["variable_call_uuid"]
+	if isTollFree == "true" {
+		uuidSet := fmt.Sprintf("uuid_broadcast %s %s aleg",aCallUUID,"/usr/local/freeswitch/sounds/bridge.wav")
+		eslCmd := fmt.Sprintf("%s", uuidSet)
+		eslPool.conns[connId].Originate(eslCmd)
+		originateCommand := fmt.Sprintf("originate %s %s",
+                        "{aled_uuid="+aCallUUID+",dtmf_digits="+dtmfNumber+",callbackbridge=true,origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/internal/"+toNumber+"@"+trunkIP,
+                        "&park()")
+		eslCmd = fmt.Sprintf("%s", originateCommand)
+		eslPool.conns[connId].Originate(eslCmd)
+	}
+}
 // Formats the event as map and prints it out
 func (eslPool *ESLsessions) printChannelHangup( eventStr, connId string) {
 	time.Sleep(2000 * time.Millisecond)
@@ -53,11 +84,12 @@ func (eslPool *ESLsessions) printChannelHangup( eventStr, connId string) {
 	didNumber := eventMap["variable_sip_req_user"]
 	toNumber := eventMap["Caller-Caller-ID-Number"]
 	fromNumber := "+17139187788"
-	trunkIP := "10.17.112.21"
+	trunkIP := "mytest11.pstn.sg1.twilio.com"
+	dtmfDigits := strings.TrimPrefix(toNumber, "+")
 	hangupApplication	   :=	eventMap["variable_current_application_data"]
 	if (hangupApplication=="ESL_TERMINATE") {
 		originateCommand := fmt.Sprintf("originate %s %s",
-			"{origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/internal/"+toNumber+"@"+trunkIP,
+			"{ignore_early_media=true,origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}[execute_on_answer='send_dtmf " + dtmfDigits + "']sofia/internal/"+toNumber+"@"+trunkIP,
 			"&bridge({origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/external/"+fromNumber+"@"+trunkIP+")")
 		eslCmd := fmt.Sprintf("bgapi %s", originateCommand)
 		eslPool.conns[connId].Originate(eslCmd)
@@ -81,12 +113,14 @@ func newESLConnection(config *configs.Config, eslPool *ESLsessions)(*esl.FSock, 
 	evFilters := make(map[string][]string)
 	evFilters["Event-Name"] = append(evFilters["Event-Name"], "CHANNEL_ANSWER")
 	evFilters["Event-Name"] = append(evFilters["Event-Name"], "CHANNEL_HANGUP_COMPLETE")
+	evFilters["Event-Name"] = append(evFilters["Event-Name"], "CHANNEL_PARK")
 
 	// We are interested in heartbeats, channel_answer, channel_hangup define handler for them
 	evHandlers := map[string][]func(string, string){
 		"HEARTBEAT":               {eslPool.printHeartbeat},
 		"CHANNEL_ANSWER":          {eslPool.printChannelAnswer},
 		"CHANNEL_HANGUP_COMPLETE": {eslPool.printChannelHangup},
+		"CHANNEL_PARK":          {eslPool.handleChannelPark},
 	}
 	eslClient, err := esl.NewFSock(fsAddr, config.EslConfig.Password, config.EslConfig.Timeout, evHandlers, evFilters, l, connectionUUID)
 	if err != nil {
@@ -116,7 +150,9 @@ func NewESLAdapterRepository(config *configs.Config,eslPool *ESLsessions) (adapt
 //Get - Get value from redis
 func (c *eslAdapterRepository) Originate(eslCommand string) (string, error) {
 	eslCmd := fmt.Sprintf("bgapi %s", eslCommand)
-	return c.eslConn.SendCmd(eslCmd)
+	resp, err := c.eslConn.SendCmd(eslCmd)
+	respField := strings.Fields(resp)
+        uuid := string(respField[2])
 	//data, err := c.cacheConn.Get(key).Result()
-	//return data, err
+	return uuid, err
 }
