@@ -1,0 +1,13 @@
+[Unit]
+Description=call server service
+After=network.target
+[Service]
+EnvironmentFile=/home/ubuntu/callserver/src/callServer/vars.env
+Type=simple
+Restart=always
+RestartSec=1
+User=root
+ExecStart=/home/ubuntu/callserver/src/callServer/main
+
+[Install]
+WantedBy=multi-user.target
