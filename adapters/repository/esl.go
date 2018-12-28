@@ -60,12 +60,12 @@ func (eslPool *ESLsessions) handleChannelPark(eventStr, connId string) {
 	if isTollFree == "true" {
 		uuidSet := fmt.Sprintf("uuid_broadcast %s %s aleg", aCallUUID, "/usr/local/freeswitch/sounds/bridge.wav")
 		eslCmd := fmt.Sprintf("%s", uuidSet)
-		eslPool.conns[connId].Originate(eslCmd)
+		eslPool.conns[connId].SendBgApiCmd(eslCmd)
 		originateCommand := fmt.Sprintf("originate %s %s",
 			"{aled_uuid="+aCallUUID+",dtmf_digits="+dtmfNumber+",callbackbridge=true,origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}[send_dtmf=true]sofia/internal/"+toNumber+"@"+trunkIP,
 			"&park()")
 		eslCmd = fmt.Sprintf("%s", originateCommand)
-		eslPool.conns[connId].Originate(eslCmd)
+		eslPool.conns[connId].SendBgApiCmd(eslCmd)
 	}
 }
 
@@ -85,7 +85,7 @@ func (eslPool *ESLsessions) printChannelHangup(eventStr, connId string) {
 			"{ignore_early_media=true,origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}[execute_on_answer='send_dtmf "+dtmfDigits+"']sofia/internal/"+toNumber+"@"+trunkIP,
 			"&bridge({origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/external/"+fromNumber+"@"+trunkIP+")")
 		eslCmd := fmt.Sprintf("bgapi %s", originateCommand)
-		eslPool.conns[connId].Originate(eslCmd)
+		eslPool.conns[connId].SendBgApiCmd(eslCmd)
 	}
 	//response, err := c.eslConn.SendCmd(eslCmd)
 }
@@ -98,23 +98,23 @@ func (eslPool *ESLsessions) handleChannelDTMF(eventStr, connId string) {
 	//dtmfDigits := eventMap["variable_dtmf_digits"]
 	//dtmfDigits := "919967609476"
 	getDtmdSendDigits := fmt.Sprintf("uuid_getvar %s dtmf_digits", aCallUUID)
-	dtmfDigits := eslPool.conns[connId].GetVar(getDtmdSendDigits)
+	dtmfDigits := eslPool.conns[connId].SendApiCmd(getDtmdSendDigits)
 	getbCallUUID := fmt.Sprintf("uuid_getvar %s aled_uuid", aCallUUID)
-	bCallUUID := eslPool.conns[connId].GetVar(getbCallUUID)
+	bCallUUID := eslPool.conns[connId].SendApiCmd(getbCallUUID)
 	getsend_dtmf := fmt.Sprintf("uuid_getvar %s send_dtmf", aCallUUID)
-	send_dtmf := eslPool.conns[connId].GetVar(getsend_dtmf)
+	send_dtmf := eslPool.conns[connId].SendApiCmd(getsend_dtmf)
 
 	dtmfDigitrecv := eventMap["DTMF-Digit"]
 	answerState := eventMap["Answer-State"]
 	if (dtmfDigitrecv == "1" && answerState == "answered" && send_dtmf == "true") {
 		eslCmd := fmt.Sprintf("uuid_send_dtmf %s %s@150", aCallUUID, dtmfDigits)
-		eslPool.conns[connId].Originate(eslCmd)
+		eslPool.conns[connId].SendBgApiCmd(eslCmd)
 		setSendDtmf := fmt.Sprintf("uuid_setvar %s send_dtmf", aCallUUID)
-		eslPool.conns[connId].GetVar(setSendDtmf)
+		eslPool.conns[connId].SendApiCmd(setSendDtmf)
 		//time.Sleep(2000 * time.Millisecond)
 		originateCommand := fmt.Sprintf("uuid_bridge %s %s", aCallUUID, bCallUUID)
 		eslCmd = fmt.Sprintf("%s", originateCommand)
-		eslPool.conns[connId].Originate(eslCmd)
+		eslPool.conns[connId].SendBgApiCmd(eslCmd)
 	}
 	fmt.Printf("%v, connId: %s\n", eventMap, connId)
 }
@@ -172,7 +172,7 @@ func NewESLAdapterRepository(config *configs.Config, eslPool *ESLsessions) (adap
 }
 
 //Get - Get value from redis
-func (c *eslAdapterRepository) Originate(eslCommand string) (string, error) {
+func (c *eslAdapterRepository) SendBgApiCmd(eslCommand string) (string, error) {
 	eslCmd := fmt.Sprintf("bgapi %s", eslCommand)
 	resp, err := c.eslConn.SendCmd(eslCmd)
 	respField := strings.Fields(resp)
@@ -182,7 +182,7 @@ func (c *eslAdapterRepository) Originate(eslCommand string) (string, error) {
 }
 
 //Get - Get value from redis
-func (c *eslAdapterRepository) GetVar(eslCommand string) (string) {
+func (c *eslAdapterRepository) SendApiCmd(eslCommand string) (string) {
 	resp, err := c.eslConn.SendApiCmd(eslCommand)
 	//data, err := c.cacheConn.Get(key).Result()
 	if err == nil {
