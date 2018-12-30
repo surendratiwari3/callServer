@@ -14,7 +14,7 @@ import (
 
 type eslAdapterRepository struct {
 	config  *configs.Config
-	eslConn *esl.FSock
+	eslConn *ESLsessions
 }
 
 // The freeswitch session manager type holding a buffer for the network connection
@@ -116,7 +116,7 @@ func (eslPool *ESLsessions) handleChannelDTMF(eventStr, connId string) {
 	fmt.Printf("%v, connId: %s\n", eventMap, connId)
 }
 
-func newESLConnection(config *configs.Config, eslPool *ESLsessions) (*esl.FSock, error) {
+func newESLConnection(config *configs.Config, eslPool *ESLsessions) (error) {
 	errChan := make(chan error)
 	connectionUUID, err := coreUtils.GenUUID()
 	if err != nil {
@@ -147,40 +147,40 @@ func newESLConnection(config *configs.Config, eslPool *ESLsessions) (*esl.FSock,
 	if err != nil {
 		panic("not able to connect with FreeSWITCH")
 	}
-	eslPool.Conns[connectionUUID] = &eslAdapterRepository{
-		config:  config,
-		eslConn: eslClient,
-	}
 	go func() { // Start reading in own goroutine, return on error
-		if err := eslPool.Conns[connectionUUID].eslConn.ReadEvents(); err != nil {
+		if err := eslClient.ReadEvents(); err != nil {
 			errChan <- err
 		}
 	}()
 	if fsSenderPool, err := esl.NewFSockPool(5, fsAddr, config.EslConfig.Password, 1, 10,
 		make(map[string][]func(string, string)), make(map[string][]string), l, connectionUUID); err != nil {
-		return nil, fmt.Errorf("Cannot connect FreeSWITCH senders pool, error: %s", err.Error())
+		return fmt.Errorf("Cannot connect FreeSWITCH senders pool, error: %s", err.Error())
 	} else if fsSenderPool == nil {
-		return nil, errors.New("Cannot connect FreeSWITCH senders pool.")
+		return errors.New("Cannot connect FreeSWITCH senders pool.")
 	} else {
 		eslPool.SenderPools[connectionUUID] = fsSenderPool
 	}
+	eslPool.Conns[connectionUUID] = &eslAdapterRepository{
+		config:  config,
+		eslConn: eslPool,
+	}
 	err = <-errChan // Will keep the Connect locked until the first error in one of the connections
-	return eslClient, err
+	return err
 }
 
 // NewCacheAdapterRepository - Repository layer for cache
 func NewESLAdapterRepository(config *configs.Config, eslPool *ESLsessions) (adapters.ESLAdapter, error) {
-	eslClient, err := newESLConnection(config, eslPool)
+	err := newESLConnection(config, eslPool)
 	return &eslAdapterRepository{
 		config:  config,
-		eslConn: eslClient,
+		eslConn: eslPool,
 	}, err
 }
 
 //Get - Get value from redis
 func (c *eslAdapterRepository) SendBgApiCmd(eslCommand string) (string, error) {
 	eslCmd := fmt.Sprintf("bgapi %s", eslCommand)
-	resp, err := c.eslConn.SendCmd(eslCmd)
+	resp, err := c.eslConn.SendBGApiCmd(eslCmd)
 	respField := strings.Fields(resp)
 	uuid := string(respField[2])
 	//data, err := c.cacheConn.Get(key).Result()
@@ -190,11 +190,28 @@ func (c *eslAdapterRepository) SendBgApiCmd(eslCommand string) (string, error) {
 //Get - Get value from redis
 func (c *eslAdapterRepository) SendApiCmd(eslCommand string) (string) {
 	resp, err := c.eslConn.SendApiCmd(eslCommand)
-	//data, err := c.cacheConn.Get(key).Result()
 	if err == nil {
 		return resp
 	}
 	return ""
+}
+
+func (eslPool *ESLsessions) SendBGApiCmd(eslCommand string) (response string, err error) {
+	l, errLog := syslog.New(syslog.LOG_INFO, "TestFSock")
+	if errLog != nil {
+		panic("not able to connect with syslog")
+	}
+	for connId, senderPool := range eslPool.SenderPools {
+		fsConn, err := senderPool.PopFSock()
+		if err != nil {
+			l.Err(fmt.Sprintf("<%s> Error on connection id: %s", err.Error(), connId))
+			continue
+		}
+		response, err = fsConn.SendApiCmd(eslCommand)
+		senderPool.PushFSock(fsConn)
+		return response, err
+	}
+	return response, err
 }
 
 func (eslPool *ESLsessions) SendApiCmd(eslCommand string) (response string, err error) {
