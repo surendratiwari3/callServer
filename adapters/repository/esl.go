@@ -29,6 +29,7 @@ func NewESLsessions(config *configs.Config) (eslPool *ESLsessions) {
 	eslPool = &ESLsessions{
 		Cfg:   config,
 		Conns: make(map[string]*eslAdapterRepository),
+		SenderPools: make(map[string]*esl.FSockPool),
 	}
 	return
 }
@@ -155,7 +156,6 @@ func newESLConnection(config *configs.Config, eslPool *ESLsessions) (*esl.FSock,
 			errChan <- err
 		}
 	}()
-
 	if fsSenderPool, err := esl.NewFSockPool(5, fsAddr, config.EslConfig.Password, 1, 10,
 		make(map[string][]func(string, string)), make(map[string][]string), l, connectionUUID); err != nil {
 		return nil, fmt.Errorf("Cannot connect FreeSWITCH senders pool, error: %s", err.Error())
