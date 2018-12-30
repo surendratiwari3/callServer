@@ -8,6 +8,7 @@ import (
 	requests "callServer/requests/repository"
 	auth "callServer/basicAuth/repository"
 	"github.com/labstack/echo/middleware"
+    "callServer/inboundCallHandler/repository"
 )
 
 func main() {
@@ -35,6 +36,10 @@ func main() {
 		log.WithError(err).Fatal("FreeSWITCH is not able to connect ")
 		panic("FreeSWITCH is not able to connect")
 	}
+
+	eslEventSessions := repository.NewESLsessions(config)
+	repository.NewInboundESLRepository(config,eslEventSessions)
+
 	//Associating the controller
 	auth.NewAuthController(e)
 	requests.NewRequestController(e, eslAdapter)
