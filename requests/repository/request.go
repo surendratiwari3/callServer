@@ -40,7 +40,7 @@ func (a *Controller) call(c echo.Context) error {
 	originateCommand := fmt.Sprintf("originate %s %s",
 		"{origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/internal/"+toNumber+"@"+trunkIP,
 		"&bridge({origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/external/"+fromNumber+"@"+trunkIP+")")
-	resp, err := a.ESLClient.Originate(originateCommand)
+	resp, err := a.ESLClient.SendBgApiCmd(originateCommand)
 	respField := strings.Fields(resp)
 	response["UUID"] = string(respField[2])
 	return c.JSON(http.StatusOK, response)
