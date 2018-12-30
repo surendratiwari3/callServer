@@ -100,6 +100,8 @@ func (eslPool *ESLsessions) handleChannelHangup(eventStr, connId string) {
 }
 
 func (eslPool *ESLsessions) handleChannelDTMF(eventStr, connId string) {
+	//need to get the solution type from channel name
+	// if callflowtype=CLI_ON_RECV_DTMF then only below call flow will applied
 	// Format the event from string into Go's map type
 	eventMap := esl.FSEventStrToMap(eventStr, []string{})
 	aCallUUID := eventMap["Channel-Call-UUID"]
@@ -109,7 +111,6 @@ func (eslPool *ESLsessions) handleChannelDTMF(eventStr, connId string) {
 	bCallUUID := eslPool.Conns[connId].SendApiCmd(getbCallUUID)
 	getsend_dtmf := fmt.Sprintf("uuid_getvar %s send_dtmf", aCallUUID)
 	send_dtmf := eslPool.Conns[connId].SendApiCmd(getsend_dtmf)
-
 	dtmfDigitrecv := eventMap["DTMF-Digit"]
 	answerState := eventMap["Answer-State"]
 	if (dtmfDigitrecv == "1" && answerState == "answered" && send_dtmf == "true") {
