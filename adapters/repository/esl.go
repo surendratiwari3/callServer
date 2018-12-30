@@ -35,14 +35,14 @@ func NewESLsessions(config *configs.Config) (eslPool *ESLsessions) {
 }
 
 // Formats the event as map and prints it out
-func (eslPool *ESLsessions) printHeartbeat(eventStr, connId string) {
+func (eslPool *ESLsessions) handleHeartbeat(eventStr, connId string) {
 	// Format the event from string into Go's map type
 	eventMap := esl.FSEventStrToMap(eventStr, []string{})
 	fmt.Printf("%v, connId: %s\n", eventMap, connId)
 }
 
 // Formats the event as map and prints it out
-func (eslPool *ESLsessions) printChannelAnswer(eventStr, connId string) {
+func (eslPool *ESLsessions) handleChannelAnswer(eventStr, connId string) {
 	// Format the event from string into Go's map type
 	eventMap := esl.FSEventStrToMap(eventStr, []string{})
 	fmt.Printf("%v, connId: %s\n", eventMap, connId)
@@ -64,6 +64,8 @@ func (eslPool *ESLsessions) handleChannelPark(eventStr, connId string) {
 	// set those details into channel variables so it can be populated into cdr
 	// also get the trunk details from the same query only
 	// also get the file to be played
+	// also in dialplan set call-type inbound
+	// also in dialplan need to set the rules from where we are going to get the calls
 	if isTollFree == "true" {
 		uuidSet := fmt.Sprintf("uuid_broadcast %s %s aleg", aCallUUID, "/usr/local/freeswitch/sounds/bridge.wav")
 		eslCmd := fmt.Sprintf("%s", uuidSet)
@@ -77,7 +79,7 @@ func (eslPool *ESLsessions) handleChannelPark(eventStr, connId string) {
 }
 
 // Formats the event as map and prints it out
-func (eslPool *ESLsessions) printChannelHangup(eventStr, connId string) {
+func (eslPool *ESLsessions) handleChannelHangup(eventStr, connId string) {
 	time.Sleep(2000 * time.Millisecond)
 	// Format the event from string into Go's map type
 	eventMap := esl.FSEventStrToMap(eventStr, []string{})
@@ -142,9 +144,9 @@ func newESLConnection(config *configs.Config, eslPool *ESLsessions) (error) {
 
 	// We are interested in heartbeats, channel_answer, channel_hangup define handler for them
 	evHandlers := map[string][]func(string, string){
-		"HEARTBEAT":               {eslPool.printHeartbeat},
-		"CHANNEL_ANSWER":          {eslPool.printChannelAnswer},
-		"CHANNEL_HANGUP_COMPLETE": {eslPool.printChannelHangup},
+		"HEARTBEAT":               {eslPool.handleHeartbeat},
+		"CHANNEL_ANSWER":          {eslPool.handleChannelAnswer},
+		"CHANNEL_HANGUP_COMPLETE": {eslPool.handleChannelHangup},
 		"CHANNEL_PARK":            {eslPool.handleChannelPark},
 		"DTMF":                    {eslPool.handleChannelDTMF},
 	}
