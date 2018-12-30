@@ -59,6 +59,11 @@ func (eslPool *ESLsessions) handleChannelPark(eventStr, connId string) {
 	isTollFree := eventMap["variable_telemo_tollfree"]
 	trunkIP := "mytest11.pstn.sg1.twilio.com"
 	aCallUUID := eventMap["variable_call_uuid"]
+	//get the solution type associated with this perticular did-number
+	// also get the associated organization and userdetails
+	// set those details into channel variables so it can be populated into cdr
+	// also get the trunk details from the same query only
+	// also get the file to be played
 	if isTollFree == "true" {
 		uuidSet := fmt.Sprintf("uuid_broadcast %s %s aleg", aCallUUID, "/usr/local/freeswitch/sounds/bridge.wav")
 		eslCmd := fmt.Sprintf("%s", uuidSet)
