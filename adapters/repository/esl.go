@@ -32,7 +32,6 @@ func NewESLsessions(config *configs.Config) (eslPool *ESLsessions) {
 }
 
 func newESLConnection(config *configs.Config, eslPool *ESLsessions) (error) {
-	errChan := make(chan error)
 	connectionUUID, err := coreUtils.GenUUID()
 	if err != nil {
 		panic("not able to generate the connection UUID to connect with FreeSWITCH")
@@ -51,7 +50,6 @@ func newESLConnection(config *configs.Config, eslPool *ESLsessions) (error) {
 	} else {
 		eslPool.SenderPools[connectionUUID] = fsSenderPool
 	}
-	err = <-errChan // Will keep the Connect locked until the first error in one of the connections
 	return err
 }
 
