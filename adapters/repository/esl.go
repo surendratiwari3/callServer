@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 	"strings"
+	"errors"
 )
 
 type eslAdapterRepository struct {
@@ -19,15 +20,15 @@ type eslAdapterRepository struct {
 // The freeswitch session manager type holding a buffer for the network connection
 // and the active sessions
 type ESLsessions struct {
-	cfg         *configs.Config
-	conns       map[string]*eslAdapterRepository // Keep the list here for connection management purposes
-	senderPools map[string]*esl.FSockPool        // Keep sender pools here
+	Cfg         *configs.Config
+	Conns       map[string]*eslAdapterRepository // Keep the list here for connection management purposes
+	SenderPools map[string]*esl.FSockPool        // Keep sender pools here
 }
 
 func NewESLsessions(config *configs.Config) (eslPool *ESLsessions) {
 	eslPool = &ESLsessions{
-		cfg:   config,
-		conns: make(map[string]*eslAdapterRepository),
+		Cfg:   config,
+		Conns: make(map[string]*eslAdapterRepository),
 	}
 	return
 }
@@ -60,12 +61,12 @@ func (eslPool *ESLsessions) handleChannelPark(eventStr, connId string) {
 	if isTollFree == "true" {
 		uuidSet := fmt.Sprintf("uuid_broadcast %s %s aleg", aCallUUID, "/usr/local/freeswitch/sounds/bridge.wav")
 		eslCmd := fmt.Sprintf("%s", uuidSet)
-		eslPool.conns[connId].SendBgApiCmd(eslCmd)
+		eslPool.SendApiCmd(eslCmd)
 		originateCommand := fmt.Sprintf("originate %s %s",
 			"{aled_uuid="+aCallUUID+",dtmf_digits="+dtmfNumber+",callbackbridge=true,origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}[send_dtmf=true]sofia/internal/"+toNumber+"@"+trunkIP,
 			"&park()")
 		eslCmd = fmt.Sprintf("%s", originateCommand)
-		eslPool.conns[connId].SendBgApiCmd(eslCmd)
+		eslPool.SendApiCmd(eslCmd)
 	}
 }
 
@@ -85,7 +86,7 @@ func (eslPool *ESLsessions) printChannelHangup(eventStr, connId string) {
 			"{ignore_early_media=true,origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}[execute_on_answer='send_dtmf "+dtmfDigits+"']sofia/internal/"+toNumber+"@"+trunkIP,
 			"&bridge({origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/external/"+fromNumber+"@"+trunkIP+")")
 		eslCmd := fmt.Sprintf("bgapi %s", originateCommand)
-		eslPool.conns[connId].SendBgApiCmd(eslCmd)
+		eslPool.SendApiCmd(eslCmd)
 	}
 	//response, err := c.eslConn.SendCmd(eslCmd)
 }
@@ -94,27 +95,22 @@ func (eslPool *ESLsessions) handleChannelDTMF(eventStr, connId string) {
 	// Format the event from string into Go's map type
 	eventMap := esl.FSEventStrToMap(eventStr, []string{})
 	aCallUUID := eventMap["Channel-Call-UUID"]
-	//        bCallUUID := eventMap["variable_aled_uuid"]
-	//dtmfDigits := eventMap["variable_dtmf_digits"]
-	//dtmfDigits := "919967609476"
 	getDtmdSendDigits := fmt.Sprintf("uuid_getvar %s dtmf_digits", aCallUUID)
-	dtmfDigits := eslPool.conns[connId].SendApiCmd(getDtmdSendDigits)
+	dtmfDigits := eslPool.Conns[connId].SendApiCmd(getDtmdSendDigits)
 	getbCallUUID := fmt.Sprintf("uuid_getvar %s aled_uuid", aCallUUID)
-	bCallUUID := eslPool.conns[connId].SendApiCmd(getbCallUUID)
+	bCallUUID := eslPool.Conns[connId].SendApiCmd(getbCallUUID)
 	getsend_dtmf := fmt.Sprintf("uuid_getvar %s send_dtmf", aCallUUID)
-	send_dtmf := eslPool.conns[connId].SendApiCmd(getsend_dtmf)
+	send_dtmf := eslPool.Conns[connId].SendApiCmd(getsend_dtmf)
 
 	dtmfDigitrecv := eventMap["DTMF-Digit"]
 	answerState := eventMap["Answer-State"]
 	if (dtmfDigitrecv == "1" && answerState == "answered" && send_dtmf == "true") {
 		eslCmd := fmt.Sprintf("uuid_send_dtmf %s %s@150", aCallUUID, dtmfDigits)
-		eslPool.conns[connId].SendBgApiCmd(eslCmd)
-		setSendDtmf := fmt.Sprintf("uuid_setvar %s send_dtmf", aCallUUID)
-		eslPool.conns[connId].SendApiCmd(setSendDtmf)
-		//time.Sleep(2000 * time.Millisecond)
-		originateCommand := fmt.Sprintf("uuid_bridge %s %s", aCallUUID, bCallUUID)
-		eslCmd = fmt.Sprintf("%s", originateCommand)
-		eslPool.conns[connId].SendBgApiCmd(eslCmd)
+		eslPool.SendApiCmd(eslCmd)
+		eslCmd = fmt.Sprintf("uuid_setvar %s send_dtmf", aCallUUID)
+		eslPool.SendApiCmd(eslCmd)
+		eslCmd = fmt.Sprintf("uuid_bridge %s %s", aCallUUID, bCallUUID)
+		eslPool.SendApiCmd(eslCmd)
 	}
 	fmt.Printf("%v, connId: %s\n", eventMap, connId)
 }
@@ -150,16 +146,26 @@ func newESLConnection(config *configs.Config, eslPool *ESLsessions) (*esl.FSock,
 	if err != nil {
 		panic("not able to connect with FreeSWITCH")
 	}
-	eslPool.conns[connectionUUID] = &eslAdapterRepository{
+	eslPool.Conns[connectionUUID] = &eslAdapterRepository{
 		config:  config,
 		eslConn: eslClient,
 	}
 	go func() { // Start reading in own goroutine, return on error
-		if err := eslPool.conns[connectionUUID].eslConn.ReadEvents(); err != nil {
+		if err := eslPool.Conns[connectionUUID].eslConn.ReadEvents(); err != nil {
 			errChan <- err
 		}
 	}()
-	return eslClient, nil
+
+	if fsSenderPool, err := esl.NewFSockPool(5, fsAddr, config.EslConfig.Password, 1, 10,
+		make(map[string][]func(string, string)), make(map[string][]string), l, connectionUUID); err != nil {
+		return nil, fmt.Errorf("Cannot connect FreeSWITCH senders pool, error: %s", err.Error())
+	} else if fsSenderPool == nil {
+		return nil, errors.New("Cannot connect FreeSWITCH senders pool.")
+	} else {
+		eslPool.SenderPools[connectionUUID] = fsSenderPool
+	}
+	err = <-errChan // Will keep the Connect locked until the first error in one of the connections
+	return eslClient, err
 }
 
 // NewCacheAdapterRepository - Repository layer for cache
@@ -189,4 +195,22 @@ func (c *eslAdapterRepository) SendApiCmd(eslCommand string) (string) {
 		return resp
 	}
 	return ""
+}
+
+func (eslPool *ESLsessions) SendApiCmd(eslCommand string) (response string, err error) {
+	l, errLog := syslog.New(syslog.LOG_INFO, "TestFSock")
+	if errLog != nil {
+		panic("not able to connect with syslog")
+	}
+	for connId, senderPool := range eslPool.SenderPools {
+		fsConn, err := senderPool.PopFSock()
+		if err != nil {
+			l.Err(fmt.Sprintf("<%s> Error on connection id: %s", err.Error(), connId))
+			continue
+		}
+		response, err = fsConn.SendApiCmd(eslCommand)
+		senderPool.PushFSock(fsConn)
+		return response, err
+	}
+	return response, err
 }
