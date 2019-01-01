@@ -9,9 +9,7 @@ import (
 	"time"
 	"strings"
 	"errors"
-	"github.com/beevik/etree"
 	"callServer/xmlReader/repository"
-	"go/doc"
 )
 
 type eslAdapterRepository struct {
