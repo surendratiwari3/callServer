@@ -9,6 +9,9 @@ import (
 	"time"
 	"strings"
 	"errors"
+	"github.com/beevik/etree"
+	"callServer/xmlReader/repository"
+	"go/doc"
 )
 
 type eslAdapterRepository struct {
@@ -51,6 +54,30 @@ func (eslPool *ESLsessions) handleChannelAnswer(eventStr, connId string) {
 func (eslPool *ESLsessions) handleChannelPark(eventStr, connId string) {
 	// Format the event from string into Go's map type
 	eventMap := esl.FSEventStrToMap(eventStr, []string{})
+	onCallURL := "https://gist.githubusercontent.com/surendratiwari3" +
+		"/b5d40e8fdc5e6d3a51bca1b4facecfa9/raw/5e7e83eb72252771b5ffe7145afa89e8c7c10ca2/users.xml"
+	xmlDocument := repository.GetDocument(onCallURL)
+	responseTag := xmlDocument.SelectElement("Response")
+	if responseTag != nil {
+		fmt.Println("ROOT element:", responseTag.Tag)
+		for _, childResponse := range responseTag.ChildElements() {
+			fmt.Println("Element:", childResponse.Tag)
+			switch childResponse.Tag {
+			case "Dial":
+				fmt.Println("Value:", childResponse.Text())
+				for _, attr := range childResponse.Attr {
+					fmt.Printf("Attribute: %s=%s\n", attr.Key, attr.Value)
+				}
+			case "Play":
+				fmt.Println("I'm an int")
+				aCallUUID := eventMap["variable_call_uuid"]
+				eslCmd := fmt.Sprintf("uuid_broadcast %s %s aleg", aCallUUID,  childResponse.Text())
+				eslPool.SendApiCmd(eslCmd)
+			default:
+				fmt.Printf("Not Valid Tag " + childResponse.Tag)
+			}
+		}
+	}
 	fmt.Printf("%v, connId: %s\n", eventMap, connId)
 	didNumber := eventMap["variable_sip_req_user"]
 	toNumber := "+442078557350"
@@ -66,16 +93,13 @@ func (eslPool *ESLsessions) handleChannelPark(eventStr, connId string) {
 	// also in dialplan set call-type inbound
 	// also in dialplan need to set the rules from where we are going to get the calls
 	if isTollFree == "true" {
-		uuidSet := fmt.Sprintf("uuid_broadcast %s %s aleg", aCallUUID, "/usr/local/freeswitch/sounds/bridge.wav")
-		eslCmd := fmt.Sprintf("%s", uuidSet)
-		eslPool.SendApiCmd(eslCmd)
-		originateCommand := fmt.Sprintf("originate %s %s",
+		eslCmd := fmt.Sprintf("originate %s %s",
 			"{aled_uuid="+aCallUUID+",dtmf_digits="+dtmfNumber+",callbackbridge=true,origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}[send_dtmf=true]sofia/internal/"+toNumber+"@"+trunkIP,
 			"&park()")
-		eslCmd = fmt.Sprintf("%s", originateCommand)
 		eslPool.SendApiCmd(eslCmd)
 	}
 }
+
 
 // Formats the event as map and prints it out
 func (eslPool *ESLsessions) handleChannelHangup(eventStr, connId string) {
@@ -226,3 +250,43 @@ func (eslPool *ESLsessions) SendApiCmd(eslCommand string) (response string, err 
 	}
 	return response, err
 }
+
+
+//
+//XML Reader
+//Get the XML
+/*
+<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+<Play loop="10">https://api.twilio.com/cowbell.mp3</Play>
+</Response>
+	//https://www.twilio.com/docs/voice/twiml/play
+The <Play> verb plays an audio file back to the caller. Twilio retrieves the file from a URL that you provide.
+The <Play> verb supports the following attributes that modify its behavior:
+
+Attribute Name	Allowed Values	Default Value
+loop	integer >= 0	1
+digits	integer >= 0, w	no default digits for Play
+<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Play digits="wwww3"></Play>
+</Response>
+<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Play>https://api.twilio.com/cowbell.mp3</Play>
+</Response>
+<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Play loop="10">https://api.twilio.com/cowbell.mp3</Play>
+</Response>
+ANSWER_URL
+FALLBACK_URL
+HANGUP_URL
+<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+     <Say>Hello World</Say>
+</Response>
+<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Play loop="10">https://api.twilio.com/cowbell.mp3</Play>
+</Response>
