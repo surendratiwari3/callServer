@@ -27,8 +27,8 @@ type ESLsessions struct {
 
 func NewESLsessions(config *configs.Config) (eslPool *ESLsessions) {
 	eslPool = &ESLsessions{
-		Cfg:   config,
-		Conns: make(map[string]*eslAdapterRepository),
+		Cfg:         config,
+		Conns:       make(map[string]*eslAdapterRepository),
 		SenderPools: make(map[string]*esl.FSockPool),
 	}
 	return
@@ -52,52 +52,49 @@ func (eslPool *ESLsessions) handleChannelAnswer(eventStr, connId string) {
 func (eslPool *ESLsessions) handleChannelPark(eventStr, connId string) {
 	// Format the event from string into Go's map type
 	eventMap := esl.FSEventStrToMap(eventStr, []string{})
-	onCallURL := "https://gist.githubusercontent.com/surendratiwari3" +
-		"/b5d40e8fdc5e6d3a51bca1b4facecfa9/raw/5e7e83eb72252771b5ffe7145afa89e8c7c10ca2/users.xml"
-	xmlDocument := repository.GetDocument(onCallURL)
-	responseTag := xmlDocument.SelectElement("Response")
-	if responseTag != nil {
-		fmt.Println("ROOT element:", responseTag.Tag)
-		for _, childResponse := range responseTag.ChildElements() {
-			fmt.Println("Element:", childResponse.Tag)
-			switch childResponse.Tag {
-			case "Dial":
-				fmt.Println("Value:", childResponse.Text())
-				for _, attr := range childResponse.Attr {
-					fmt.Printf("Attribute: %s=%s\n", attr.Key, attr.Value)
+	isTollFree := eventMap["variable_telemo_tollfree"]
+	if isTollFree == "true" {
+		onCallURL := "https://gist.githubusercontent.com/surendratiwari3/b5d40e8fdc5e6d3a51bca1b4facecfa9/" +
+			"raw/7cb08ebe33cadee6d96c29071b15b7a766b00710/users.xml"
+		xmlDocument := repository.GetDocument(onCallURL)
+		responseTag := xmlDocument.SelectElement("Response")
+		if responseTag != nil {
+			fmt.Println("ROOT element:", responseTag.Tag)
+			for _, childResponse := range responseTag.ChildElements() {
+				fmt.Println("Element:", childResponse.Tag)
+				switch childResponse.Tag {
+				case "Dial":
+					aCallUUID := eventMap["variable_call_uuid"]
+					dtmfNumber := eventMap["Caller-Caller-ID-Number"]
+					didNumber := eventMap["variable_sip_req_user"]
+					trunkIP := "mytest11.pstn.sg1.twilio.com"
+					fmt.Println("Value:", childResponse.Text())
+					for _, attr := range childResponse.Attr {
+						fmt.Printf("Attribute: %s=%s\n", attr.Key, attr.Value)
+					}
+					eslCmd := fmt.Sprintf("originate %s %s",
+						"{aled_uuid="+aCallUUID+",dtmf_digits="+dtmfNumber+",callbackbridge=true,origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}[send_dtmf=true]sofia/internal/"+childResponse.Text()+"@"+trunkIP,
+						"&park()")
+					eslPool.SendApiCmd(eslCmd)
+				case "Play":
+					fmt.Println("I'm an int")
+					aCallUUID := eventMap["variable_call_uuid"]
+					eslCmd := fmt.Sprintf("uuid_broadcast %s %s aleg", aCallUUID, childResponse.Text())
+					eslPool.SendApiCmd(eslCmd)
+				default:
+					fmt.Printf("Not Valid Tag " + childResponse.Tag)
 				}
-			case "Play":
-				fmt.Println("I'm an int")
-				aCallUUID := eventMap["variable_call_uuid"]
-				eslCmd := fmt.Sprintf("uuid_broadcast %s %s aleg", aCallUUID,  childResponse.Text())
-				eslPool.SendApiCmd(eslCmd)
-			default:
-				fmt.Printf("Not Valid Tag " + childResponse.Tag)
 			}
 		}
-	}
-	fmt.Printf("%v, connId: %s\n", eventMap, connId)
-	didNumber := eventMap["variable_sip_req_user"]
-	toNumber := "+442078557350"
-	dtmfNumber := eventMap["Caller-Caller-ID-Number"]
-	isTollFree := eventMap["variable_telemo_tollfree"]
-	trunkIP := "mytest11.pstn.sg1.twilio.com"
-	aCallUUID := eventMap["variable_call_uuid"]
-	//get the solution type associated with this perticular did-number
-	// also get the associated organization and userdetails
-	// set those details into channel variables so it can be populated into cdr
-	// also get the trunk details from the same query only
-	// also get the file to be played
-	// also in dialplan set call-type inbound
-	// also in dialplan need to set the rules from where we are going to get the calls
-	if isTollFree == "true" {
-		eslCmd := fmt.Sprintf("originate %s %s",
-			"{aled_uuid="+aCallUUID+",dtmf_digits="+dtmfNumber+",callbackbridge=true,origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}[send_dtmf=true]sofia/internal/"+toNumber+"@"+trunkIP,
-			"&park()")
-		eslPool.SendApiCmd(eslCmd)
+		//get the solution type associated with this perticular did-number
+		// also get the associated organization and userdetails
+		// set those details into channel variables so it can be populated into cdr
+		// also get the trunk details from the same query only
+		// also get the file to be played
+		// also in dialplan set call-type inbound
+		// also in dialplan need to set the rules from where we are going to get the calls
 	}
 }
-
 
 // Formats the event as map and prints it out
 func (eslPool *ESLsessions) handleChannelHangup(eventStr, connId string) {
@@ -128,17 +125,17 @@ func (eslPool *ESLsessions) handleChannelDTMF(eventStr, connId string) {
 	aCallUUID := eventMap["Channel-Call-UUID"]
 	getDtmdSendDigits := fmt.Sprintf("uuid_getvar %s dtmf_digits", aCallUUID)
 	dtmfDigits, err := eslPool.SendApiCmd(getDtmdSendDigits)
-	if err!=nil{
+	if err != nil {
 
 	}
 	getbCallUUID := fmt.Sprintf("uuid_getvar %s aled_uuid", aCallUUID)
 	bCallUUID, err := eslPool.SendApiCmd(getbCallUUID)
-	if err!=nil{
+	if err != nil {
 
 	}
 	getsend_dtmf := fmt.Sprintf("uuid_getvar %s send_dtmf", aCallUUID)
 	send_dtmf, err := eslPool.SendApiCmd(getsend_dtmf)
-	if err!=nil{
+	if err != nil {
 
 	}
 	dtmfDigitrecv := eventMap["DTMF-Digit"]
@@ -212,7 +209,6 @@ func NewInboundESLRepository(config *configs.Config, eslPool *ESLsessions) (erro
 	return err
 }
 
-
 func (eslPool *ESLsessions) SendBGApiCmd(eslCommand string) (response string, err error) {
 	l, errLog := syslog.New(syslog.LOG_INFO, "TestFSock")
 	if errLog != nil {
@@ -248,7 +244,6 @@ func (eslPool *ESLsessions) SendApiCmd(eslCommand string) (response string, err 
 	}
 	return response, err
 }
-
 
 //
 //XML Reader
@@ -289,3 +284,5 @@ HANGUP_URL
     <Play loop="10">https://api.twilio.com/cowbell.mp3</Play>
 </Response>
 */
+
+//dial ----> answer ------> bridge=no -----> waitForDtmf ------> dtmfAction
