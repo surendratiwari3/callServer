@@ -48,14 +48,20 @@ func (eslPool *ESLsessions) handleChannelAnswer(eventStr, connId string) {
 	fmt.Printf("%v, connId: %s\n", eventMap, connId)
 }
 
+func (eslPool *ESLsessions) handleBackgroundJOB(eventStr, connId string) {
+	// Format the event from string into Go's map type
+        eventMap := esl.FSEventStrToMap(eventStr, []string{})
+        fmt.Printf("%v, connId: %s\n", eventMap, connId)
+}
 // Formats the event as map and prints it out
 func (eslPool *ESLsessions) handleChannelPark(eventStr, connId string) {
 	// Format the event from string into Go's map type
 	eventMap := esl.FSEventStrToMap(eventStr, []string{})
 	isTollFree := eventMap["variable_telemo_tollfree"]
 	if isTollFree == "true" {
-		onCallURL := "https://gist.githubusercontent.com/surendratiwari3/b5d40e8fdc5e6d3a51bca1b4facecfa9/" +
-			"raw/7cb08ebe33cadee6d96c29071b15b7a766b00710/users.xml"
+		onCallURL := "https://gist.githubusercontent.com/surendratiwari3/b5d40e8fdc5e6d3a51bca1b4facecfa9/raw/9b0790bf4d229e06a58393f98ed27113b14f6ad4/users.xml"
+//		onCallURL := "https://gist.githubusercontent.com/surendratiwari3/b5d40e8fdc5e6d3a51bca1b4facecfa9/raw/7e1bf05b64b9908a6ca1c813a9846cd0cb581cc0/users.xml"
+		//onCallURL := "https://gist.githubusercontent.com/surendratiwari3/b5d40e8fdc5e6d3a51bca1b4facecfa9/raw/9b0790bf4d229e06a58393f98ed27113b14f6ad4/users.xml"
 		xmlDocument := repository.GetDocument(onCallURL)
 		responseTag := xmlDocument.SelectElement("Response")
 		if responseTag != nil {
@@ -140,14 +146,16 @@ func (eslPool *ESLsessions) handleChannelDTMF(eventStr, connId string) {
 	}
 	dtmfDigitrecv := eventMap["DTMF-Digit"]
 	answerState := eventMap["Answer-State"]
+	go func() {
 	if (dtmfDigitrecv == "1" && answerState == "answered" && send_dtmf == "true") {
-		eslCmd := fmt.Sprintf("uuid_send_dtmf %s %s@150", aCallUUID, dtmfDigits)
-		eslPool.SendApiCmd(eslCmd)
+		eslCmd := fmt.Sprintf("uuid_send_dtmf %s %s@100", aCallUUID, dtmfDigits)
+		eslPool.SendBGApiCmd(eslCmd)
 		eslCmd = fmt.Sprintf("uuid_setvar %s send_dtmf", aCallUUID)
 		eslPool.SendApiCmd(eslCmd)
 		eslCmd = fmt.Sprintf("uuid_bridge %s %s", aCallUUID, bCallUUID)
 		eslPool.SendApiCmd(eslCmd)
 	}
+	}()
 	fmt.Printf("%v, connId: %s\n", eventMap, connId)
 }
 
@@ -169,7 +177,7 @@ func newESLConnection(config *configs.Config, eslPool *ESLsessions) (error) {
 	evFilters["Event-Name"] = append(evFilters["Event-Name"], "CHANNEL_HANGUP_COMPLETE")
 	evFilters["Event-Name"] = append(evFilters["Event-Name"], "CHANNEL_PARK")
 	evFilters["Event-Name"] = append(evFilters["Event-Name"], "DTMF")
-
+	evFilters["Event-Name"] = append(evFilters["Event-Name"], "BACKGROUND_JOB")
 	// We are interested in heartbeats, channel_answer, channel_hangup define handler for them
 	evHandlers := map[string][]func(string, string){
 		"HEARTBEAT":               {eslPool.handleHeartbeat},
@@ -177,6 +185,7 @@ func newESLConnection(config *configs.Config, eslPool *ESLsessions) (error) {
 		"CHANNEL_HANGUP_COMPLETE": {eslPool.handleChannelHangup},
 		"CHANNEL_PARK":            {eslPool.handleChannelPark},
 		"DTMF":                    {eslPool.handleChannelDTMF},
+		"BACKGROUND_JOB":          {eslPool.handleBackgroundJOB},
 	}
 	eslClient, err := esl.NewFSock(fsAddr, config.EslConfig.Password, config.EslConfig.Timeout, evHandlers, evFilters, l, connectionUUID)
 	if err != nil {
@@ -284,5 +293,5 @@ HANGUP_URL
     <Play loop="10">https://api.twilio.com/cowbell.mp3</Play>
 </Response>
 */
-
+//https://s3.ap-south-1.amazonaws.com/amazon-playback-file/Please+wait+while+we+connect+you.wav
 //dial ----> answer ------> bridge=no -----> waitForDtmf ------> dtmfAction

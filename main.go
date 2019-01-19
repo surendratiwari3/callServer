@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/labstack/echo"
 	"callServer/logger"
 	"callServer/configs"
@@ -36,10 +37,12 @@ func main() {
 		log.WithError(err).Fatal("FreeSWITCH is not able to connect ")
 		panic("FreeSWITCH is not able to connect")
 	}
-
+	fmt.Println("hello world")
 	eslEventSessions := repository.NewESLsessions(config)
-	repository.NewInboundESLRepository(config,eslEventSessions)
-
+	go func(){
+		repository.NewInboundESLRepository(config,eslEventSessions)
+        }()
+	fmt.Println("hello world")
 	//Associating the controller
 	auth.NewAuthController(e)
 	requests.NewRequestController(e, eslAdapter)

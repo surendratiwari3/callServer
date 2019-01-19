@@ -31,17 +31,18 @@ func (a *Controller) call(c echo.Context) error {
 	}
 
 	//authId := c.Param("auth_id")
-	fromNumber := callDetails["fromNumber"].(string)
-	toNumber := callDetails["toNumber"].(string)
-	didNumber := callDetails["didNumber"].(string)
+	fromNumber := callDetails["To"].(string)
+	toNumber := callDetails["From"].(string)
+	didNumber := callDetails["From"].(string)
 	trunkIP := "115.248.91.197"
 	response["message"] = "Call is Created"
 
 	originateCommand := fmt.Sprintf("originate %s %s",
 		"{origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/internal/"+toNumber+"@"+trunkIP,
 		"&bridge({origination_caller_id_number="+didNumber+",absolute_codec_string=PCMU,PCMA}sofia/external/"+fromNumber+"@"+trunkIP+")")
-	resp, err := a.ESLClient.SendBgApiCmd(originateCommand)
+	resp,_ := a.ESLClient.SendBgApiCmd(originateCommand)
 	respField := strings.Fields(resp)
-	response["UUID"] = string(respField[2])
+	fmt.Println(respField)
+	response["UUID"] = string(respField[0])
 	return c.JSON(http.StatusOK, response)
 }
