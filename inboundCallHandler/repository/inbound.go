@@ -83,7 +83,6 @@ func (eslPool *ESLsessions) handleChannelPark(eventStr, connId string) {
 						"&park()")
 					eslPool.SendApiCmd(eslCmd)
 				case "Play":
-					fmt.Println("I'm an int")
 					aCallUUID := eventMap["variable_call_uuid"]
 					eslCmd := fmt.Sprintf("uuid_broadcast %s %s aleg", aCallUUID, childResponse.Text())
 					eslPool.SendApiCmd(eslCmd)
