@@ -43,6 +43,6 @@ func (a *Controller) call(c echo.Context) error {
 	resp,_ := a.ESLClient.SendBgApiCmd(originateCommand)
 	respField := strings.Fields(resp)
 	fmt.Println(respField)
-	response["UUID"] = string(respField[0])
+	response["call_uuid"] = string(respField[0])
 	return c.JSON(http.StatusOK, response)
 }
