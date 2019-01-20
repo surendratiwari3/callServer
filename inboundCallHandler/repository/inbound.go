@@ -9,6 +9,7 @@ import (
 	"time"
 	"strings"
 	"errors"
+	"github.com/franela/goreq"
 	"callServer/xmlReader/repository"
 )
 
@@ -23,6 +24,13 @@ type ESLsessions struct {
 	Cfg         *configs.Config
 	Conns       map[string]*eslAdapterRepository // Keep the list here for connection management purposes
 	SenderPools map[string]*esl.FSockPool        // Keep sender pools here
+}
+
+type getHttpQuery struct {
+	FromNumber string `url:"from" json:"from"`
+	ToNumber string `url:"to" json:"to"`
+	DidNumber string `url:"did_number" json:"did_number"`
+	AnswerURL string `url:"answer_url" json:"answer_url"`
 }
 
 func NewESLsessions(config *configs.Config) (eslPool *ESLsessions) {
@@ -59,7 +67,8 @@ func (eslPool *ESLsessions) handleChannelPark(eventStr, connId string) {
 	eventMap := esl.FSEventStrToMap(eventStr, []string{})
 	isTollFree := eventMap["variable_telemo_tollfree"]
 	if isTollFree == "true" {
-		onCallURL := "https://gist.githubusercontent.com/surendratiwari3/b5d40e8fdc5e6d3a51bca1b4facecfa9/raw/9b0790bf4d229e06a58393f98ed27113b14f6ad4/users.xml"
+		onCallURL := "https://gist.githubusercontent.com/surendratiwari3/8827b5ec15cc4cb92d63149adae5d6b1/raw/12c59c77f8f21b03c4dd4ad919e7670a6196bc71/testHttp"
+//		onCallURL := "https://gist.githubusercontent.com/surendratiwari3/b5d40e8fdc5e6d3a51bca1b4facecfa9/raw/9b0790bf4d229e06a58393f98ed27113b14f6ad4/users.xml"
 //		onCallURL := "https://gist.githubusercontent.com/surendratiwari3/b5d40e8fdc5e6d3a51bca1b4facecfa9/raw/7e1bf05b64b9908a6ca1c813a9846cd0cb581cc0/users.xml"
 		//onCallURL := "https://gist.githubusercontent.com/surendratiwari3/b5d40e8fdc5e6d3a51bca1b4facecfa9/raw/9b0790bf4d229e06a58393f98ed27113b14f6ad4/users.xml"
 		xmlDocument := repository.GetDocument(onCallURL)
@@ -86,6 +95,19 @@ func (eslPool *ESLsessions) handleChannelPark(eventStr, connId string) {
 					aCallUUID := eventMap["variable_call_uuid"]
 					eslCmd := fmt.Sprintf("uuid_broadcast %s %s aleg", aCallUUID, childResponse.Text())
 					eslPool.SendApiCmd(eslCmd)
+				case "Http":
+					didNumber := eventMap["variable_sip_req_user"]
+					fromNumber := eventMap["Caller-Caller-ID-Number"]
+					toNumber := "+919967609476"
+					getHttpParams := getHttpQuery{
+						FromNumber: fromNumber,
+						ToNumber: toNumber,
+						DidNumber: didNumber,
+						AnswerURL: "https://gist.githubusercontent.com/SurendraPlivo/b1ba61e27e675f402906a6ef3b1eefd9/raw/e4f918168160a8c0f706e33ec62b5acb1b9cc0a7/gistfile1.txt",
+					}
+					getHttpURL := childResponse.Text()
+					Post(getHttpURL, 10, "joe","secret", getHttpParams)
+				//	callUrl := childResponse.Text()
 				default:
 					fmt.Printf("Not Valid Tag " + childResponse.Tag)
 				}
@@ -253,6 +275,36 @@ func (eslPool *ESLsessions) SendApiCmd(eslCommand string) (response string, err 
 	return response, err
 }
 
+
+func Get(uri string, timeout int, auth string, pass string, queryParam interface{}) (map[string]interface{}, int, error) {
+	response := make(map[string]interface{})
+	res, err := goreq.Request{
+		Method:            "GET",
+		Uri:               uri,
+		ContentType:       "application/json",
+		Accept:            "application/json",
+		Timeout:           time.Second * time.Duration(timeout),
+		BasicAuthUsername: auth,
+		BasicAuthPassword: pass,
+		QueryString:       queryParam,
+	}.Do()
+	return response, res.StatusCode, err
+}
+
+func Post(uri string, timeout int, auth string, pass string, queryParam interface{}) (map[string]interface{}, int, error) {
+        response := make(map[string]interface{})
+        res, err := goreq.Request{ 
+                Method:            "POST",
+                Uri:               uri,
+                ContentType:       "application/json",
+                Accept:            "application/json",
+                Timeout:           time.Second * time.Duration(timeout),
+                BasicAuthUsername: auth,
+                BasicAuthPassword: pass,
+                Body:       queryParam,
+        }.Do()
+        return response, res.StatusCode, err
+}
 //
 //XML Reader
 //Get the XML
