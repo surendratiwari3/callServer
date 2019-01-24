@@ -9,6 +9,7 @@ import (
 	"time"
 	"strings"
 	"errors"
+	"callServer/adapters"
 	"github.com/franela/goreq"
 	"callServer/xmlReader/repository"
 )
@@ -30,6 +31,7 @@ type getHttpQuery struct {
 	FromNumber string `url:"from" json:"from"`
 	ToNumber string `url:"to" json:"to"`
 	DidNumber string `url:"did_number" json:"did_number"`
+	ALegCallUUID string `url:"a_leg_call_uuid" json:"a_leg_call_uuid"`
 	AnswerURL string `url:"answer_url" json:"answer_url"`
 }
 
@@ -66,8 +68,18 @@ func (eslPool *ESLsessions) handleChannelPark(eventStr, connId string) {
 	// Format the event from string into Go's map type
 	eventMap := esl.FSEventStrToMap(eventStr, []string{})
 	isTollFree := eventMap["variable_telemo_tollfree"]
-	if isTollFree == "true" {
-		onCallURL := "https://gist.githubusercontent.com/surendratiwari3/8827b5ec15cc4cb92d63149adae5d6b1/raw/12c59c77f8f21b03c4dd4ad919e7670a6196bc71/testHttp"
+	isAlegCallUUID := eventMap["variable_X-STAR-TELE-LOGIC-CALLUUID"]
+	if len(isAlegCallUUID)>10{
+		aCallUUID := eventMap["Channel-Call-UUID"]
+        	getbCallUUID := fmt.Sprintf("uuid_getvar %s X-STAR-TELE-LOGIC-CALLUUID", aCallUUID)
+        	bCallUUID, err := eslPool.SendApiCmd(getbCallUUID)
+        	if err != nil {
+
+        	}
+                eslCmd := fmt.Sprintf("uuid_bridge %s %s", aCallUUID, bCallUUID)
+                eslPool.SendApiCmd(eslCmd)
+	}else if isTollFree == "true" {
+		onCallURL := "https://gist.githubusercontent.com/surendratiwari3/8827b5ec15cc4cb92d63149adae5d6b1/raw/065e6c56ab9bd47e1503bb132585032465f413c8/testHttp"
 //		onCallURL := "https://gist.githubusercontent.com/surendratiwari3/b5d40e8fdc5e6d3a51bca1b4facecfa9/raw/9b0790bf4d229e06a58393f98ed27113b14f6ad4/users.xml"
 //		onCallURL := "https://gist.githubusercontent.com/surendratiwari3/b5d40e8fdc5e6d3a51bca1b4facecfa9/raw/7e1bf05b64b9908a6ca1c813a9846cd0cb581cc0/users.xml"
 		//onCallURL := "https://gist.githubusercontent.com/surendratiwari3/b5d40e8fdc5e6d3a51bca1b4facecfa9/raw/9b0790bf4d229e06a58393f98ed27113b14f6ad4/users.xml"
@@ -99,10 +111,12 @@ func (eslPool *ESLsessions) handleChannelPark(eventStr, connId string) {
 					didNumber := eventMap["variable_sip_req_user"]
 					fromNumber := eventMap["Caller-Caller-ID-Number"]
 					toNumber := "+919967609476"
+					aCallUUID := eventMap["variable_call_uuid"]
 					getHttpParams := getHttpQuery{
 						FromNumber: fromNumber,
 						ToNumber: toNumber,
 						DidNumber: didNumber,
+						ALegCallUUID: aCallUUID,
 						AnswerURL: "https://gist.githubusercontent.com/SurendraPlivo/b1ba61e27e675f402906a6ef3b1eefd9/raw/e4f918168160a8c0f706e33ec62b5acb1b9cc0a7/gistfile1.txt",
 					}
 					getHttpURL := childResponse.Text()
@@ -180,7 +194,7 @@ func (eslPool *ESLsessions) handleChannelDTMF(eventStr, connId string) {
 	fmt.Printf("%v, connId: %s\n", eventMap, connId)
 }
 
-func newESLConnection(config *configs.Config, eslPool *ESLsessions) (error) {
+func newESLConnection(config *configs.Config, eslPool *ESLsessions, redisAdd *RedisAdapter) (error) {
 	errChan := make(chan error)
 	connectionUUID, err := coreUtils.GenUUID()
 	if err != nil {
@@ -228,14 +242,15 @@ func newESLConnection(config *configs.Config, eslPool *ESLsessions) (error) {
 	eslPool.Conns[connectionUUID] = &eslAdapterRepository{
 		config:  config,
 		eslConn: eslPool,
+		redisConn: redisAdd,
 	}
 	err = <-errChan // Will keep the Connect locked until the first error in one of the connections
 	return err
 }
 
 // NewCacheAdapterRepository - Repository layer for cache
-func NewInboundESLRepository(config *configs.Config, eslPool *ESLsessions) (error) {
-	err := newESLConnection(config, eslPool)
+func NewInboundESLRepository(config *configs.Config, eslPool *ESLsessions,redisAdd *RedisAdapter) (error) {
+	err := newESLConnection(config, eslPool, redisAdd)
 	return err
 }
 
