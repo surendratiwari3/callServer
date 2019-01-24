@@ -38,5 +38,12 @@ func NewRedisAdapterRepository(config *configs.Config) (adapters.RedisAdapter, e
 //Get - Get value from redis
 func (c *redisAdapterRepository) Get(key string) (string, error) {
 	data, err := c.cacheConn.Get(key).Result()
+	c.cacheConn.Del(key)
 	return data, err
+}
+
+//Set - Set value to redis
+func (c *redisAdapterRepository) Set(key string, value string, duration time.Duration) (string, error) {
+	result, err := c.cacheConn.Set(key, value, duration).Result()
+	return result, err
 }

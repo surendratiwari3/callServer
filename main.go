@@ -40,7 +40,7 @@ func main() {
 	fmt.Println("hello world")
 	eslEventSessions := repository.NewESLsessions(config)
 	go func(){
-		repository.NewInboundESLRepository(config,eslEventSessions)
+		repository.NewInboundESLRepository(config, eslEventSessions, redisAdapter)
         }()
 	fmt.Println("hello world")
 	//Associating the controller

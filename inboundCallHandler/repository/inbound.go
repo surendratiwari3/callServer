@@ -24,7 +24,8 @@ type eslAdapterRepository struct {
 type ESLsessions struct {
 	Cfg         *configs.Config
 	Conns       map[string]*eslAdapterRepository // Keep the list here for connection management purposes
-	SenderPools map[string]*esl.FSockPool        // Keep sender pools here
+	SenderPools map[string]*esl.FSockPool
+	RedisAdapter adapters.RedisAdapter// Keep sender pools here
 }
 
 type getHttpQuery struct {
@@ -35,11 +36,12 @@ type getHttpQuery struct {
 	AnswerURL string `url:"answer_url" json:"answer_url"`
 }
 
-func NewESLsessions(config *configs.Config) (eslPool *ESLsessions) {
+func NewESLsessions(config *configs.Config) (eslPool *ESLsessions, redisAdapters adapters.RedisAdapter) {
 	eslPool = &ESLsessions{
 		Cfg:         config,
 		Conns:       make(map[string]*eslAdapterRepository),
 		SenderPools: make(map[string]*esl.FSockPool),
+		RedisAdapter: redisAdapters,
 	}
 	return
 }
@@ -70,14 +72,11 @@ func (eslPool *ESLsessions) handleChannelPark(eventStr, connId string) {
 	isTollFree := eventMap["variable_telemo_tollfree"]
 	isAlegCallUUID := eventMap["variable_X-STAR-TELE-LOGIC-CALLUUID"]
 	if len(isAlegCallUUID)>10{
-		aCallUUID := eventMap["Channel-Call-UUID"]
-        	getbCallUUID := fmt.Sprintf("uuid_getvar %s X-STAR-TELE-LOGIC-CALLUUID", aCallUUID)
-        	bCallUUID, err := eslPool.SendApiCmd(getbCallUUID)
-        	if err != nil {
-
-        	}
-                eslCmd := fmt.Sprintf("uuid_bridge %s %s", aCallUUID, bCallUUID)
-                eslPool.SendApiCmd(eslCmd)
+			aCallUUID := eventMap["Channel-Call-UUID"]
+			fromNumber := eventMap["variable_sip_from_user"]
+			bCallUUID, _ := eslPool.RedisAdapter.Get(fromNumber)
+			eslCmd := fmt.Sprintf("uuid_bridge %s %s", aCallUUID, bCallUUID)
+			eslPool.SendApiCmd(eslCmd)
 	}else if isTollFree == "true" {
 		onCallURL := "https://gist.githubusercontent.com/surendratiwari3/8827b5ec15cc4cb92d63149adae5d6b1/raw/065e6c56ab9bd47e1503bb132585032465f413c8/testHttp"
 //		onCallURL := "https://gist.githubusercontent.com/surendratiwari3/b5d40e8fdc5e6d3a51bca1b4facecfa9/raw/9b0790bf4d229e06a58393f98ed27113b14f6ad4/users.xml"
@@ -112,6 +111,7 @@ func (eslPool *ESLsessions) handleChannelPark(eventStr, connId string) {
 					fromNumber := eventMap["Caller-Caller-ID-Number"]
 					toNumber := "+919967609476"
 					aCallUUID := eventMap["variable_call_uuid"]
+					eslPool.RedisAdapter.Set(fromNumber,aCallUUID)
 					getHttpParams := getHttpQuery{
 						FromNumber: fromNumber,
 						ToNumber: toNumber,
@@ -194,7 +194,7 @@ func (eslPool *ESLsessions) handleChannelDTMF(eventStr, connId string) {
 	fmt.Printf("%v, connId: %s\n", eventMap, connId)
 }
 
-func newESLConnection(config *configs.Config, eslPool *ESLsessions, redisAdd *RedisAdapter) (error) {
+func newESLConnection(config *configs.Config, eslPool *ESLsessions, redisAdapter adapters.RedisAdapter) (error) {
 	errChan := make(chan error)
 	connectionUUID, err := coreUtils.GenUUID()
 	if err != nil {
@@ -238,19 +238,19 @@ func newESLConnection(config *configs.Config, eslPool *ESLsessions, redisAdd *Re
 		return errors.New("Cannot connect FreeSWITCH senders pool.")
 	} else {
 		eslPool.SenderPools[connectionUUID] = fsSenderPool
+		eslPool.RedisAdapter = redisAdapter
 	}
 	eslPool.Conns[connectionUUID] = &eslAdapterRepository{
 		config:  config,
 		eslConn: eslPool,
-		redisConn: redisAdd,
 	}
 	err = <-errChan // Will keep the Connect locked until the first error in one of the connections
 	return err
 }
 
 // NewCacheAdapterRepository - Repository layer for cache
-func NewInboundESLRepository(config *configs.Config, eslPool *ESLsessions,redisAdd *RedisAdapter) (error) {
-	err := newESLConnection(config, eslPool, redisAdd)
+func NewInboundESLRepository(config *configs.Config, eslPool *ESLsessions,redisAdapter adapters.RedisAdapter) (error) {
+	err := newESLConnection(config, eslPool, redisAdapter)
 	return err
 }
 
